@@ -10,6 +10,7 @@ import healthRoutes from "./routes/health.routes";
 import customerRoutes from "./routes/customer.routes";
 import orderRoutes from "./routes/order.routes";
 import campaignRoutes from "./routes/campaign.routes";
+import receiptRoutes from "./routes/receipt.routes";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/health", healthRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/campaigns", campaignRoutes);
+app.use("/api/receipt", receiptRoutes);
 
 // --------------- Error Handler ---------------
 // Must be registered AFTER all routes
