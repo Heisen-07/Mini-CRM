@@ -12,6 +12,7 @@ import orderRoutes from "./routes/order.routes";
 import campaignRoutes from "./routes/campaign.routes";
 import receiptRoutes from "./routes/receipt.routes";
 import aiRoutes from "./routes/ai.routes";
+import analyticsRoutes from "./routes/analytics.routes";
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/receipt", receiptRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // --------------- Error Handler ---------------
 // Must be registered AFTER all routes

@@ -121,3 +121,65 @@ Rules:
 
   return parsed;
 }
+
+// ============================================
+// AI Business Insights
+// Generates analytics summary from CRM metrics
+// ============================================
+
+export async function generateBusinessInsights(metrics: {
+  totalCustomers: number;
+  totalOrders: number;
+  totalRevenue: number;
+  avgOrderValue: number;
+  highestSpender: string;
+  topCity: string;
+  inactive30: number;
+  inactive90: number;
+}): Promise<string[]> {
+  const prompt = `You are a CRM business analyst.
+
+Given the following CRM metrics, generate 3-5 concise business insights.
+
+Metrics:
+- Total Customers: ${metrics.totalCustomers}
+- Total Orders: ${metrics.totalOrders}
+- Total Revenue: ₹${metrics.totalRevenue}
+- Average Order Value: ₹${metrics.avgOrderValue}
+- Highest Spender: ${metrics.highestSpender}
+- Top City: ${metrics.topCity}
+- Inactive > 30 days: ${metrics.inactive30}
+- Inactive > 90 days: ${metrics.inactive90}
+
+Rules:
+- Return a JSON array of 3-5 strings
+- Each string is one concise insight
+- Focus on actionable business observations
+- Mention specific numbers and names from the data
+- No markdown, no code fences
+- ONLY return the JSON array
+
+Example format:
+["insight 1", "insight 2", "insight 3"]`;
+
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  const text = response.text?.trim();
+
+  if (!text) {
+    throw new Error("Gemini returned empty response for insights");
+  }
+
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const parsed = JSON.parse(cleaned);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Gemini returned non-array response for insights");
+  }
+
+  return parsed;
+}
