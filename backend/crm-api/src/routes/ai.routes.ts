@@ -1,13 +1,15 @@
 // ============================================
 // AI Routes
-// POST /api/ai/message  → generate campaign message
-// POST /api/ai/segment  → AI audience segmentation
+// POST /api/ai/message   → generate campaign message
+// POST /api/ai/segment   → AI audience segmentation
+// POST /api/ai/campaign  → AI campaign builder
 // ============================================
 
 import { Router, Request, Response } from "express";
 import { sendSuccess, sendError } from "../utils/response";
-import { generateCampaignMessage, segmentCustomers } from "../ai/gemini.service";
+import { generateCampaignMessage, segmentCustomers, generateCampaignPlan } from "../ai/gemini.service";
 import { getCustomersByFilter } from "../services/customer.service";
+import { createCampaign } from "../services/campaign.service";
 
 const router = Router();
 
@@ -64,6 +66,45 @@ router.post("/segment", async (req: Request, res: Response) => {
     }
 
     sendError(res, "AI segmentation unavailable", 503);
+  }
+});
+
+// AI-powered campaign builder
+router.post("/campaign", async (req: Request, res: Response) => {
+  try {
+    const { goal } = req.body;
+
+    if (!goal || typeof goal !== "string") {
+      sendError(res, "goal is required and must be a string", 400);
+      return;
+    }
+
+    // Step 1: Gemini generates campaign plan
+    const generated = await generateCampaignPlan(goal);
+    console.log("[AI-CAMPAIGN] Generated:", JSON.stringify(generated));
+
+    // Step 2: Save campaign as draft
+    const campaign = await createCampaign({
+      name: generated.campaignName,
+      goal,
+      channel: generated.channel,
+      message: generated.message,
+    });
+    console.log("[AI-CAMPAIGN] Saved:", campaign.id);
+
+    sendSuccess(res, {
+      campaign,
+      generated,
+    }, 201);
+  } catch (error: any) {
+    console.error("[AI-CAMPAIGN] Error:", error.message || error);
+
+    if (error instanceof SyntaxError) {
+      sendError(res, "AI returned malformed response", 500);
+      return;
+    }
+
+    sendError(res, "AI campaign builder unavailable", 503);
   }
 });
 

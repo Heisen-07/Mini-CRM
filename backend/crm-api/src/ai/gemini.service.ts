@@ -183,3 +183,61 @@ Example format:
 
   return parsed;
 }
+
+// ============================================
+// AI Campaign Builder
+// Generates full campaign plan from a business goal
+// ============================================
+
+export async function generateCampaignPlan(goal: string): Promise<{
+  campaignName: string;
+  segmentQuery: string;
+  channel: string;
+  message: string;
+}> {
+  const prompt = `You are a CRM campaign strategist.
+
+Given the following business goal, generate a complete campaign plan.
+
+Business Goal: "${goal}"
+
+Return a JSON object with exactly these 4 fields:
+
+{
+  "campaignName": "Short campaign name (3-6 words)",
+  "segmentQuery": "Natural language audience query (e.g. 'Customers inactive for 30 days')",
+  "channel": "email or sms or whatsapp",
+  "message": "Short marketing message (2-3 sentences)"
+}
+
+Rules:
+- Return ONLY the JSON object
+- campaignName must be concise and descriptive
+- segmentQuery must describe the target audience in plain English
+- channel must be one of: email, sms, whatsapp
+- message must be friendly and include a relevant offer
+- No markdown, no code fences, no explanations
+- ONLY raw JSON`;
+
+  const ai = getAI();
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  const text = response.text?.trim();
+
+  if (!text) {
+    throw new Error("Gemini returned empty response for campaign plan");
+  }
+
+  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const parsed = JSON.parse(cleaned);
+
+  // Validate required fields
+  if (!parsed.campaignName || !parsed.segmentQuery || !parsed.channel || !parsed.message) {
+    throw new Error("Gemini returned incomplete campaign plan");
+  }
+
+  return parsed;
+}
