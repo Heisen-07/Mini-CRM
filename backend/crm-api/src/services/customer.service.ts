@@ -33,3 +33,42 @@ export async function createCustomer(data: {
     },
   });
 }
+
+// ============================================
+// AI Audience Segmentation — Prisma Filter
+// Converts structured JSON filter → Prisma query
+// ============================================
+
+export async function getCustomersByFilter(filter: Record<string, any>) {
+  const where: any = {};
+
+  if (filter.totalSpend) {
+    where.totalSpend = { gt: filter.totalSpend.gt };
+  }
+
+  if (filter.city) {
+    where.city = { equals: filter.city, mode: "insensitive" };
+  }
+
+  if (filter.orderCount) {
+    where.orderCount = { gt: filter.orderCount.gt };
+  }
+
+  if (filter.inactiveDays) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - filter.inactiveDays.gt);
+    where.lastPurchaseDate = { lt: cutoffDate };
+  }
+
+  // Reject unknown filter keys
+  const supportedKeys = ["totalSpend", "city", "orderCount", "inactiveDays"];
+  const unknownKeys = Object.keys(filter).filter((k) => !supportedKeys.includes(k));
+  if (unknownKeys.length > 0) {
+    throw new Error(`Unsupported filter keys: ${unknownKeys.join(", ")}`);
+  }
+
+  return prisma.customer.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+  });
+}
