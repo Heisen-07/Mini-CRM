@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/error.middleware";
 import healthRoutes from "./routes/health.routes";
 import customerRoutes from "./routes/customer.routes";
 import orderRoutes from "./routes/order.routes";
+import campaignRoutes from "./routes/campaign.routes";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use("/health", healthRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/campaigns", campaignRoutes);
 
 // --------------- Error Handler ---------------
 // Must be registered AFTER all routes
