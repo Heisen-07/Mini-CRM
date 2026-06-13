@@ -7,6 +7,7 @@ import cors from "cors";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/error.middleware";
 import healthRoutes from "./routes/health.routes";
+import customerRoutes from "./routes/customer.routes";
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 
 // --------------- Routes ---------------
 app.use("/health", healthRoutes);
+app.use("/api/customers", customerRoutes);
 
 // --------------- Error Handler ---------------
 // Must be registered AFTER all routes
