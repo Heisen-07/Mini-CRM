@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { API_URL } from '@/lib/api';
+import API_URL from '@/lib/api';
 
 const EXAMPLE_PROMPTS = [
   'Reactivate inactive customers',

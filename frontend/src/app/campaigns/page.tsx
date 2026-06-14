@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { API_URL } from '@/lib/api';
+import API_URL from '@/lib/api';
 
 interface Campaign {
   id: string;

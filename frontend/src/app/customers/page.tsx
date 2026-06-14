@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { API_URL } from "@/lib/api";
+import API_URL from "@/lib/api";
 
 interface Customer {
   id: string;
