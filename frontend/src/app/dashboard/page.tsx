@@ -17,16 +17,20 @@ interface AnalyticsMetrics {
 interface AnalyticsData {
   metrics: AnalyticsMetrics;
   aiSummary: string[];
+  cached: boolean;
+  generatedAt: string | null;
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  useEffect(() => {
+  // ── Load metrics + cached/fallback insights (no Gemini call) ──
+  const fetchData = () => {
     fetch(`${API_URL}/api/analytics/summary`)
       .then((res) => {
         if (!res.ok) {
@@ -39,6 +43,8 @@ export default function DashboardPage() {
           setData({
             metrics: json.metrics,
             aiSummary: json.aiSummary,
+            cached: json.cached,
+            generatedAt: json.generatedAt,
           });
         } else {
           throw new Error(json.message || "Analytics service returned an error");
@@ -52,7 +58,37 @@ export default function DashboardPage() {
         }
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
+
+  // ── Refresh AI insights (only call to Gemini) ──
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${API_URL}/api/analytics/refresh`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`Refresh failed (HTTP ${res.status})`);
+      const json = await res.json();
+      if (json.success && data) {
+        setData({
+          ...data,
+          metrics: json.metrics,
+          aiSummary: json.aiSummary,
+          cached: false,
+          generatedAt: json.generatedAt,
+        });
+      }
+    } catch {
+      // Silently fail — existing insights remain visible
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -93,6 +129,16 @@ export default function DashboardPage() {
   if (!data) return null;
 
   const { metrics, aiSummary } = data;
+
+  // Format generatedAt for display
+  const lastUpdated = data.generatedAt
+    ? new Date(data.generatedAt).toLocaleString("en-IN", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
 
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
@@ -200,9 +246,33 @@ export default function DashboardPage() {
           
           <div className="relative bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-2xl p-6 h-full flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-4 border-b border-[rgba(99,102,241,0.15)] pb-3">
-                <span className="text-[#6366F1] text-lg">✦</span>
-                <h3 className="text-lg font-bold text-[#F8FAFC]">AI Business Insights</h3>
+              <div className="flex items-center justify-between mb-4 border-b border-[rgba(99,102,241,0.15)] pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#6366F1] text-lg">✦</span>
+                  <h3 className="text-lg font-bold text-[#F8FAFC]">AI Business Insights</h3>
+                </div>
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6366F1]/10 hover:bg-[#6366F1]/20 text-[#6366F1] rounded-lg text-xs font-semibold transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {refreshing ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh AI Insights
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Insights Content — aiSummary is string[] */}
@@ -217,11 +287,16 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-6 pt-3 border-t border-[rgba(99,102,241,0.15)] flex justify-between items-center text-xs text-[#94A3B8]/60">
-              <span>Updated live</span>
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#22C55E] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#22C55E]"></span>
+              <span>
+                {lastUpdated
+                  ? `AI insights from ${lastUpdated}`
+                  : "Rule-based insights — click Refresh for AI analysis"}
               </span>
+              {data.cached && (
+                <span className="bg-[#6366F1]/10 text-[#6366F1] px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
+                  Cached
+                </span>
+              )}
             </div>
           </div>
         </div>

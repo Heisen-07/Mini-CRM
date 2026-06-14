@@ -8,6 +8,29 @@ import axios from "axios";
 import prisma from "../config/database";
 import { env } from "../config/env";
 
+// ============================================
+// Campaign Analysis Cache (in-memory)
+// Avoids calling Gemini on every campaign detail view
+// ============================================
+
+interface CampaignAnalysisCache {
+  insights: string[];
+  generatedAt: string;
+}
+
+const analysisCache = new Map<string, CampaignAnalysisCache>();
+
+export function getCachedAnalysis(campaignId: string): CampaignAnalysisCache | null {
+  return analysisCache.get(campaignId) || null;
+}
+
+export function setCachedAnalysis(campaignId: string, insights: string[]): void {
+  analysisCache.set(campaignId, {
+    insights,
+    generatedAt: new Date().toISOString(),
+  });
+}
+
 export async function getAllCampaigns() {
   return prisma.campaign.findMany({
     orderBy: { createdAt: "desc" },

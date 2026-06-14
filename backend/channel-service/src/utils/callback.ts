@@ -9,7 +9,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const CRM_API_URL = process.env.CRM_API_URL || "http://localhost:3000";
+const CRM_API_URL = process.env.CRM_API_URL || "http://localhost:3001";
 
 interface CallbackPayload {
   communicationId: string;

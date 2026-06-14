@@ -55,6 +55,7 @@ export default function CampaignDetailPage() {
   // AI performance analysis
   const [insights, setInsights] = useState<string[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [analysisGeneratedAt, setAnalysisGeneratedAt] = useState<string | null>(null);
 
   // Launching
   const [launching, setLaunching] = useState(false);
@@ -71,6 +72,11 @@ export default function CampaignDetailPage() {
         setCampaign(json.campaign);
         setEditMessage(json.campaign.message || "");
         if (json.performance) setPerformance(json.performance);
+        // Load cached analysis if available
+        if (json.analysis) {
+          setInsights(json.analysis.insights);
+          setAnalysisGeneratedAt(json.analysis.generatedAt);
+        }
       })
       .catch((err) => {
         if (err instanceof TypeError && err.message === "Failed to fetch") {
@@ -103,28 +109,25 @@ export default function CampaignDetailPage() {
       .finally(() => setReasoningLoading(false));
   }, [campaign]);
 
-  // ── Fetch AI performance analysis (launched only) ──
-  useEffect(() => {
-    if (!campaign || campaign.status !== "launched" || !performance) return;
+  // ── Refresh AI performance analysis (only Gemini trigger) ──
+  const handleRefreshAnalysis = async () => {
+    if (insightsLoading) return;
     setInsightsLoading(true);
-    fetch(`${API_URL}/api/ai/campaign-analysis`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: campaign.name,
-        channel: campaign.channel,
-        message: campaign.message,
-        audienceSize: campaign.audienceSize,
-        ...performance,
-      }),
-    })
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success) setInsights(json.insights);
-      })
-      .catch(() => {})
-      .finally(() => setInsightsLoading(false));
-  }, [campaign, performance]);
+    try {
+      const res = await fetch(`${API_URL}/api/campaigns/${id}/refresh-analysis`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (json.success) {
+        setInsights(json.insights);
+        setAnalysisGeneratedAt(json.generatedAt);
+      }
+    } catch {
+      // Silently fail — existing insights remain visible
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
 
   // ── Save message ──
   const handleSave = async () => {
@@ -303,13 +306,24 @@ export default function CampaignDetailPage() {
         <div className="relative group">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-[#6366F1] to-[#22C55E] rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-300"></div>
           <div className="relative bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-2xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-[#6366F1] text-lg">✦</span>
-              <h3 className="text-lg font-bold text-[#F8FAFC]">AI Performance Analysis</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[#6366F1] text-lg">✦</span>
+                <h3 className="text-lg font-bold text-[#F8FAFC]">AI Performance Analysis</h3>
+              </div>
+              <button
+                onClick={handleRefreshAnalysis}
+                disabled={insightsLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#6366F1]/10 hover:bg-[#6366F1]/20 text-[#6366F1] rounded-lg text-xs font-semibold transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                {insightsLoading ? (
+                  <><svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>Analyzing...</>
+                ) : (
+                  <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Refresh Analysis</>
+                )}
+              </button>
             </div>
-            {insightsLoading ? (
-              <div className="flex items-center gap-2 text-[#94A3B8] text-sm"><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>Analyzing campaign performance...</div>
-            ) : insights && insights.length > 0 ? (
+            {insights && insights.length > 0 ? (
               <div className="space-y-3">
                 {insights.map((insight, i) => (
                   <div key={i} className="flex gap-3 items-start text-sm text-[#94A3B8]">
@@ -319,7 +333,12 @@ export default function CampaignDetailPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-[#94A3B8]/50 text-sm italic">Performance analysis unavailable</p>
+              <p className="text-[#94A3B8]/50 text-sm italic">Click &quot;Refresh Analysis&quot; to generate AI insights for this campaign.</p>
+            )}
+            {analysisGeneratedAt && (
+              <div className="mt-4 pt-3 border-t border-[rgba(99,102,241,0.15)] text-xs text-[#94A3B8]/60">
+                AI analysis from {new Date(analysisGeneratedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </div>
             )}
           </div>
         </div>
