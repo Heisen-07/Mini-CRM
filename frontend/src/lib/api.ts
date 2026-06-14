@@ -1,8 +1,10 @@
-const API_URL =
+export const API_URL =
   (process.env.NEXT_PUBLIC_API_URL ||
     (process.env.NODE_ENV === "development" ? "http://localhost:3001" : ""))
-  .replace(/\/+$/, "");
+    .replace(/\/+$/, "");
 
-console.log("API_URL =", API_URL);
+if (process.env.NODE_ENV === "development") {
+  console.log("API_URL =", API_URL);
+}
 
 export default API_URL;

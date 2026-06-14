@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import API_URL from "@/lib/api";
+import { API_URL } from "@/lib/api";
 
 interface Customer {
   id: string;
@@ -33,6 +33,14 @@ export default function CustomersPage() {
   const [city, setCity] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Add Order modal state
+  const [orderCustomer, setOrderCustomer] = useState<Customer | null>(null);
+  const [orderAmount, setOrderAmount] = useState("");
+  const [orderCategory, setOrderCategory] = useState("");
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
 
 
   const fetchCustomers = () => {
@@ -100,6 +108,57 @@ export default function CustomersPage() {
       setFormError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openOrderModal = (customer: Customer) => {
+    setOrderCustomer(customer);
+    setOrderAmount("");
+    setOrderCategory("");
+    setOrderError(null);
+    setOrderSuccess(null);
+  };
+
+  const handleCreateOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderCustomer) return;
+
+    const amountNum = Number(orderAmount);
+    if (!amountNum || amountNum <= 0) {
+      setOrderError("Enter a valid amount greater than 0");
+      return;
+    }
+
+    setOrderSubmitting(true);
+    setOrderError(null);
+
+    try {
+      const res = await fetch(`${API_URL}/api/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: orderCustomer.id,
+          amount: amountNum,
+          productCategory: orderCategory.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to create order");
+      }
+
+      // Success — keep the modal open briefly with a confirmation, then close
+      setOrderSuccess(`Order of ₹${amountNum.toLocaleString()} placed for ${orderCustomer.name}.`);
+      setOrderAmount("");
+      setOrderCategory("");
+      fetchCustomers(); // refresh spend/order totals
+      setTimeout(() => setOrderCustomer(null), 1500);
+    } catch (err: unknown) {
+      setOrderError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setOrderSubmitting(false);
     }
   };
 
@@ -193,6 +252,7 @@ export default function CustomersPage() {
                 <th className="py-4 px-6 text-right">Orders</th>
                 <th className="py-4 px-6 text-right">Total Spend</th>
                 <th className="py-4 px-6">Last Activity</th>
+                <th className="py-4 px-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[rgba(99,102,241,0.1)] text-sm text-[#F8FAFC]">
@@ -232,11 +292,19 @@ export default function CustomersPage() {
                         <span className="text-[#94A3B8]/40 italic">Never Purchased</span>
                       )}
                     </td>
+                    <td className="py-4 px-6 text-right">
+                      <button
+                        onClick={() => openOrderModal(customer)}
+                        className="bg-[#22C55E]/10 hover:bg-[#22C55E]/20 text-[#22C55E] px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap"
+                      >
+                        + Order
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-[#94A3B8]">
+                  <td colSpan={6} className="py-12 text-center text-[#94A3B8]">
                     No customers found matching the search criteria.
                   </td>
                 </tr>
@@ -341,6 +409,89 @@ export default function CustomersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Order Modal */}
+      {orderCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-2xl max-w-md w-full p-6 shadow-2xl relative animate-scale-up">
+            <button
+              onClick={() => setOrderCustomer(null)}
+              className="absolute top-4 right-4 text-[#94A3B8] hover:text-[#F8FAFC] transition cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <h3 className="text-xl font-bold text-[#F8FAFC] mb-1">Add Order</h3>
+            <p className="text-sm text-[#94A3B8] mb-4">
+              For <span className="text-[#F8FAFC] font-medium">{orderCustomer.name}</span>
+            </p>
+
+            {orderError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-xs mb-4">
+                {orderError}
+              </div>
+            )}
+            {orderSuccess && (
+              <div className="bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl p-3 text-[#22C55E] text-xs mb-4">
+                ✓ {orderSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateOrder} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-1">
+                  Amount (₹) *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={orderAmount}
+                  onChange={(e) => setOrderAmount(e.target.value)}
+                  placeholder="e.g. 2999"
+                  className="w-full bg-[#0B1020] border border-[rgba(99,102,241,0.15)] rounded-xl py-2 px-3 text-[#F8FAFC] placeholder-[#94A3B8]/50 text-sm outline-none focus:border-[#6366F1] transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-1">
+                  Product Category
+                </label>
+                <input
+                  type="text"
+                  value={orderCategory}
+                  onChange={(e) => setOrderCategory(e.target.value)}
+                  placeholder="e.g. Fashion"
+                  className="w-full bg-[#0B1020] border border-[rgba(99,102,241,0.15)] rounded-xl py-2 px-3 text-[#F8FAFC] placeholder-[#94A3B8]/50 text-sm outline-none focus:border-[#6366F1] transition"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setOrderCustomer(null)}
+                  className="flex-1 bg-[#0B1020] border border-[rgba(99,102,241,0.15)] text-[#94A3B8] hover:text-[#F8FAFC] py-2.5 rounded-xl text-sm font-medium transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={orderSubmitting}
+                  className="flex-1 bg-[#22C55E] hover:bg-[#16A34A] text-white py-2.5 rounded-xl text-sm font-medium transition disabled:opacity-50 cursor-pointer"
+                >
+                  {orderSubmitting ? "Adding..." : "Add Order"}
+                </button>
+              </div>
+            </form>
+
+            <p className="text-xs text-[#94A3B8]/60 mt-4">
+              If this customer recently received a campaign, this order is automatically attributed to it and shows up as a conversion on that campaign.
+            </p>
           </div>
         </div>
       )}

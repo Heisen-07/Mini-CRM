@@ -11,7 +11,7 @@ import { Router, Request, Response } from "express";
 import { sendSuccess, sendError } from "../utils/response";
 import { generateCampaignMessage, segmentCustomers, generateCampaignPlan, generateChannelReasoning, generateCampaignAnalysis } from "../ai/gemini.service";
 import { getCustomersByFilter } from "../services/customer.service";
-import { createCampaign } from "../services/campaign.service";
+import { createCampaign, resolveSegment } from "../services/campaign.service";
 
 const router = Router();
 
@@ -81,18 +81,24 @@ router.post("/campaign", async (req: Request, res: Response) => {
       return;
     }
 
-    // Step 1: Gemini generates campaign plan
+    // Step 1: Gemini generates campaign plan (incl. a natural-language audience)
     const generated = await generateCampaignPlan(goal);
     console.log("[AI-CAMPAIGN] Generated:", JSON.stringify(generated));
 
-    // Step 2: Save campaign as draft
+    // Step 2: Resolve that audience into an executable filter + size (off the send path)
+    const { segmentFilter, audienceSize } = await resolveSegment(generated.segmentQuery);
+
+    // Step 3: Save campaign as draft, with its target audience attached
     const campaign = await createCampaign({
       name: generated.campaignName,
       goal,
       channel: generated.channel,
       message: generated.message,
+      segmentQuery: generated.segmentQuery,
+      segmentFilter,
+      audienceSize,
     });
-    console.log("[AI-CAMPAIGN] Saved:", campaign.id);
+    console.log(`[AI-CAMPAIGN] Saved: ${campaign.id} (audience ${audienceSize})`);
 
     sendSuccess(res, {
       campaign,

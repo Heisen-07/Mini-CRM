@@ -75,27 +75,37 @@ Query: "${query}"
 
 You MUST return ONLY valid JSON. No markdown, no explanation, no code fences.
 
-Supported filters (use ONLY these):
+Supported fields and operators (use ONLY these):
 
-1. Total spend filter:
-   {"totalSpend": {"gt": NUMBER}}
+1. totalSpend — number. Operators: gt, gte, lt, lte, eq
+   high spenders:        {"totalSpend": {"gt": 10000}}
+   low spenders:         {"totalSpend": {"lt": 1000}}
 
-2. City filter:
-   {"city": "CITY_NAME"}
+2. orderCount — number. Operators: gt, gte, lt, lte, eq
+   repeat buyers:        {"orderCount": {"gt": 2}}
+   never purchased:      {"orderCount": {"eq": 0}}
+   one-time buyers:      {"orderCount": {"eq": 1}}
 
-3. Order count filter:
-   {"orderCount": {"gt": NUMBER}}
+3. city — exact city name:
+   {"city": "Mumbai"}
 
-4. Inactive days filter:
-   {"inactiveDays": {"gt": NUMBER}}
+4. inactiveDays — days since last purchase. Operator: gt
+   {"inactiveDays": {"gt": 30}}
+
+Mapping hints:
+- "never purchased" / "no orders" / "new" / "welcome" customers -> {"orderCount": {"eq": 0}}
+- "high value" / "VIP" / "big spenders"                         -> {"totalSpend": {"gt": 10000}}
+- "low spenders" / "spent less than X"                          -> {"totalSpend": {"lt": X}}
+- "repeat" / "loyal" / "more than N orders"                     -> {"orderCount": {"gt": N}}
+- "inactive" / "win back" / "not bought in N days"              -> {"inactiveDays": {"gt": N}}
+- "from <city>" / "<city> customers"                            -> {"city": "<city>"}
 
 Rules:
 - Return EXACTLY one JSON object
-- Use only the filters listed above
-- If the query doesn't match any supported filter, return: {"error": "unsupported query"}
+- Use ONLY the fields and operators listed above
+- If the query truly doesn't match any supported field, return: {"error": "unsupported query"}
 - No arrays, no nested objects beyond what's shown
-- No markdown formatting
-- No code blocks
+- No markdown, no code blocks
 - ONLY raw JSON`;
 
   const ai = getAI();
@@ -306,7 +316,14 @@ export async function generateCampaignAnalysis(data: {
   openRate: number;
   clickRate: number;
   failureRate: number;
+  conversions?: number;
+  revenue?: number;
+  conversionRate?: number;
 }): Promise<string[]> {
+  const conversions = data.conversions ?? 0;
+  const revenue = data.revenue ?? 0;
+  const conversionRate = data.conversionRate ?? 0;
+
   // Deterministic fallback insights
   const fallback: string[] = [];
   fallback.push(`Campaign "${data.name}" reached ${data.total} recipients via ${data.channel}.`);
@@ -319,6 +336,9 @@ export async function generateCampaignAnalysis(data: {
     fallback.push(`Click rate of ${data.clickRate}% shows strong call-to-action engagement.`);
   } else if (data.total > 0) {
     fallback.push(`Consider strengthening the call-to-action to improve the ${data.clickRate}% click rate.`);
+  }
+  if (conversions > 0) {
+    fallback.push(`${conversions} order(s) worth ₹${revenue} were attributed to this campaign (${conversionRate}% conversion rate).`);
   }
   if (data.failed > 0) {
     fallback.push(`${data.failed} deliveries failed (${data.failureRate}%). Review audience data quality.`);
@@ -340,11 +360,14 @@ Failed: ${data.failed}
 Open Rate: ${data.openRate}%
 Click Rate: ${data.clickRate}%
 Failure Rate: ${data.failureRate}%
+Attributed Conversions: ${conversions}
+Attributed Revenue: ₹${revenue}
+Conversion Rate: ${conversionRate}%
 
 Rules:
 - Return a JSON array of 3-5 strings
 - Each string is one actionable insight
-- Reference specific numbers
+- Reference specific numbers, including revenue/conversions when notable
 - Include recommendations
 - No markdown, no code fences
 - ONLY return the JSON array`;

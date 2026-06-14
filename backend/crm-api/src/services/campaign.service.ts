@@ -7,6 +7,8 @@
 import axios from "axios";
 import prisma from "../config/database";
 import { env } from "../config/env";
+import { segmentCustomers } from "../ai/gemini.service";
+import { getCustomersByFilter, getAllCustomers } from "./customer.service";
 
 // ============================================
 // Campaign Analysis Cache (Persistent)
@@ -79,6 +81,9 @@ export async function createCampaign(data: {
   goal?: string;
   channel?: string;
   message?: string;
+  segmentQuery?: string;
+  segmentFilter?: string | null;
+  audienceSize?: number;
 }) {
   return prisma.campaign.create({
     data: {
@@ -86,8 +91,33 @@ export async function createCampaign(data: {
       goal: data.goal,
       channel: data.channel,
       message: data.message,
+      segmentQuery: data.segmentQuery,
+      segmentFilter: data.segmentFilter,
+      audienceSize: data.audienceSize ?? 0,
     },
   });
+}
+
+// ============================================
+// Resolve a natural-language segment into an executable filter + audience size.
+// Runs at campaign creation (off the send path) so launch never calls Gemini.
+// Falls back to "all customers" when the query can't be turned into a filter.
+// ============================================
+export async function resolveSegment(
+  segmentQuery: string
+): Promise<{ segmentFilter: string | null; audienceSize: number }> {
+  try {
+    const filter = await segmentCustomers(segmentQuery);
+    const customers = await getCustomersByFilter(filter);
+    return { segmentFilter: JSON.stringify(filter), audienceSize: customers.length };
+  } catch (error: any) {
+    console.log(
+      `[SEGMENT] Could not resolve "${segmentQuery}", defaulting to all customers:`,
+      error.message || error
+    );
+    const all = await getAllCustomers();
+    return { segmentFilter: null, audienceSize: all.length };
+  }
 }
 
 export async function launchCampaign(campaignId: string) {
@@ -104,11 +134,21 @@ export async function launchCampaign(campaignId: string) {
     return { error: "Campaign already launched", status: 400 };
   }
 
-  // 2. Find all customers (no segmentation yet)
-  const customers = await prisma.customer.findMany();
+  // 2. Resolve the target audience from the campaign's stored segment.
+  //    Falls back to all customers when no segment was attached (legacy campaigns).
+  let customers;
+  if (campaign.segmentFilter) {
+    try {
+      customers = await getCustomersByFilter(JSON.parse(campaign.segmentFilter));
+    } catch (error) {
+      return { error: "Campaign has an invalid segment filter", status: 500 };
+    }
+  } else {
+    customers = await prisma.customer.findMany();
+  }
 
   if (customers.length === 0) {
-    return { error: "No customers found", status: 400 };
+    return { error: "Segment matched no customers", status: 400 };
   }
 
   // 3. Create Communication records for each customer
@@ -207,6 +247,18 @@ export async function getCampaignWithPerformance(id: string) {
   const clickRate = total > 0 ? Math.round((clicked / total) * 1000) / 10 : 0;
   const failureRate = total > 0 ? Math.round((failed / total) * 1000) / 10 : 0;
 
+  // Revenue attribution: orders credited to this campaign via last-touch
+  // attribution (see order.service.ts). This answers the brief's
+  // "order came because of this communication".
+  const attributed = await prisma.order.aggregate({
+    where: { campaignId: id },
+    _count: { id: true },
+    _sum: { amount: true },
+  });
+  const conversions = attributed._count.id;
+  const revenue = attributed._sum.amount || 0;
+  const conversionRate = total > 0 ? Math.round((conversions / total) * 1000) / 10 : 0;
+
   return {
     campaign,
     performance: {
@@ -219,6 +271,9 @@ export async function getCampaignWithPerformance(id: string) {
       openRate,
       clickRate,
       failureRate,
+      conversions,
+      revenue,
+      conversionRate,
     },
   };
 }

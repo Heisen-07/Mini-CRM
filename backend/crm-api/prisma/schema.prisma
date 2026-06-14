@@ -40,7 +40,17 @@ model Order {
   orderDate       DateTime @default(now())
   createdAt       DateTime @default(now())
 
-  customer        Customer @relation(fields: [customerId], references: [id])
+  // Last-touch attribution: the communication/campaign credited for this order.
+  // Null when the order was not preceded by an engaged communication.
+  campaignId      String?
+  communicationId String?
+
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  campaign        Campaign?      @relation(fields: [campaignId], references: [id])
+  communication   Communication? @relation(fields: [communicationId], references: [id])
+
+  @@index([customerId])
+  @@index([campaignId])
 }
 
 // ============================================
@@ -52,11 +62,14 @@ model Campaign {
   goal           String?
   channel        String          @default("email")
   message        String?
+  segmentQuery   String?         // human-readable natural-language audience description
+  segmentFilter  String?         // JSON-stringified executable filter applied at launch
   audienceSize   Int             @default(0)
   status         String          @default("draft")
   createdAt      DateTime        @default(now())
 
-  communications Communication[]
+  communications   Communication[]
+  attributedOrders Order[]
 }
 
 // ============================================
@@ -71,9 +84,13 @@ model Communication {
   status     String               @default("pending")
   createdAt  DateTime             @default(now())
 
-  campaign   Campaign             @relation(fields: [campaignId], references: [id])
-  customer   Customer             @relation(fields: [customerId], references: [id])
-  events     CommunicationEvent[]
+  campaign         Campaign             @relation(fields: [campaignId], references: [id])
+  customer         Customer             @relation(fields: [customerId], references: [id])
+  events           CommunicationEvent[]
+  attributedOrders Order[]
+
+  @@index([customerId])
+  @@index([campaignId])
 }
 
 // ============================================

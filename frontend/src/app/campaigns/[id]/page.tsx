@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import API_URL from "@/lib/api";
+import { API_URL } from "@/lib/api";
 
 // ── Types ────────────────────────────────────
 
@@ -13,6 +13,7 @@ interface Campaign {
   goal: string | null;
   channel: string;
   message: string | null;
+  segmentQuery: string | null;
   audienceSize: number;
   status: "draft" | "launched";
   createdAt: string;
@@ -28,6 +29,9 @@ interface Performance {
   openRate: number;
   clickRate: number;
   failureRate: number;
+  conversions: number;
+  revenue: number;
+  conversionRate: number;
 }
 
 // ── Component ────────────────────────────────
@@ -219,6 +223,20 @@ export default function CampaignDetailPage() {
         <InfoCard label="Created" value={new Date(campaign.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} />
       </div>
 
+      {/* ── Target Audience ── */}
+      {campaign.segmentQuery && (
+        <div className="bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[#6366F1]">✦</span>
+            <h3 className="text-lg font-bold text-[#F8FAFC]">Target Audience</h3>
+          </div>
+          <p className="text-[#94A3B8] text-sm">{campaign.segmentQuery}</p>
+          <p className="text-[#6366F1] text-sm font-medium mt-1">
+            {campaign.audienceSize.toLocaleString()} customers match this segment
+          </p>
+        </div>
+      )}
+
       {/* ── Message Section ── */}
       <div className="bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-2xl p-6">
         <h3 className="text-lg font-bold text-[#F8FAFC] mb-4">Campaign Message</h3>
@@ -301,6 +319,17 @@ export default function CampaignDetailPage() {
             <RateCard label="Click Rate" value={performance.clickRate} />
             <RateCard label="Failure Rate" value={performance.failureRate} isNegative />
           </div>
+
+          {/* Revenue attribution — orders driven by this campaign */}
+          <h3 className="text-lg font-bold text-[#F8FAFC] mt-8 mb-4">Revenue Attribution</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MetricCard label="Conversions" value={performance.conversions} color="green" />
+            <RevenueCard label="Attributed Revenue" value={performance.revenue} />
+            <RateCard label="Conversion Rate" value={performance.conversionRate} />
+          </div>
+          <p className="text-xs text-[#94A3B8]/60 mt-3">
+            Orders placed by recipients within the attribution window are credited to this campaign (last-touch).
+          </p>
         </div>
       )}
 
@@ -389,6 +418,15 @@ function RateCard({ label, value, isNegative }: { label: string; value: number; 
     <div className="bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-xl p-4 flex justify-between items-center">
       <span className="text-sm text-[#94A3B8]">{label}</span>
       <span className={`text-xl font-bold ${color}`}>{value}%</span>
+    </div>
+  );
+}
+
+function RevenueCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-[#121A2F] border border-[rgba(99,102,241,0.15)] rounded-xl p-4 flex justify-between items-center">
+      <span className="text-sm text-[#94A3B8]">{label}</span>
+      <span className="text-xl font-bold text-[#22C55E]">₹{value.toLocaleString()}</span>
     </div>
   );
 }

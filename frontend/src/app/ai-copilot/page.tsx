@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import API_URL from '@/lib/api';
+import Link from 'next/link';
+import { API_URL } from '@/lib/api';
 
 const EXAMPLE_PROMPTS = [
   'Reactivate inactive customers',
@@ -16,16 +17,23 @@ interface GeneratedCampaign {
   message: string;
 }
 
+interface SavedCampaign {
+  id: string;
+  audienceSize: number;
+}
+
 export default function AICopilotPage() {
   const [goal, setGoal] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GeneratedCampaign | null>(null);
+  const [campaign, setCampaign] = useState<SavedCampaign | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!goal.trim() || loading) return;
     setLoading(true);
     setResult(null);
+    setCampaign(null);
     setError(null);
 
 
@@ -44,6 +52,7 @@ export default function AICopilotPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'Generation failed');
       setResult(data.generated);
+      setCampaign(data.campaign);
     } catch (err: unknown) {
       if (err instanceof TypeError && err.message === 'Failed to fetch') {
         setError('AI service unavailable. Please ensure the CRM API is running.');
@@ -165,6 +174,11 @@ export default function AICopilotPage() {
             <div className="mb-4">
               <span className="text-sm text-[#94A3B8]">Target Audience</span>
               <p className="mt-1 text-[#F8FAFC]">{result.segmentQuery}</p>
+              {campaign && (
+                <p className="mt-1 text-sm font-medium text-[#6366F1]">
+                  {campaign.audienceSize.toLocaleString()} customers match this segment
+                </p>
+              )}
             </div>
 
             {/* Channel */}
@@ -186,9 +200,19 @@ export default function AICopilotPage() {
             </div>
 
             {/* Saved Indicator */}
-            <div className="flex items-center gap-2 text-sm text-[#94A3B8]">
-              <span className="inline-block w-2 h-2 rounded-full bg-[#22C55E]" />
-              Saved as Draft
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-[#94A3B8]">
+                <span className="inline-block w-2 h-2 rounded-full bg-[#22C55E]" />
+                Saved as Draft
+              </div>
+              {campaign && (
+                <Link
+                  href={`/campaigns/${campaign.id}`}
+                  className="text-sm font-semibold text-[#6366F1] hover:text-[#5558E6] transition"
+                >
+                  View Campaign →
+                </Link>
+              )}
             </div>
           </div>
         </div>
