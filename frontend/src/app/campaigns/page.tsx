@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface Campaign {
@@ -19,6 +20,7 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [launchingIds, setLaunchingIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -90,7 +92,8 @@ export default function CampaignsPage() {
         {campaigns.map((campaign) => (
           <div
             key={campaign.id}
-            className="bg-[#121A2F] rounded-xl p-6 border border-[rgba(99,102,241,0.15)]"
+            onClick={() => router.push(`/campaigns/${campaign.id}`)}
+            className="bg-[#121A2F] rounded-xl p-6 border border-[rgba(99,102,241,0.15)] cursor-pointer hover:border-[#6366F1]/50 transition-all duration-200"
           >
             <div className="flex items-start justify-between mb-4">
               <h2 className="text-lg font-semibold text-[#F8FAFC]">{campaign.name}</h2>
@@ -126,7 +129,7 @@ export default function CampaignsPage() {
 
             {campaign.status === 'draft' && (
               <button
-                onClick={() => handleLaunch(campaign.id)}
+                onClick={(e) => { e.stopPropagation(); handleLaunch(campaign.id); }}
                 disabled={launchingIds.has(campaign.id)}
                 className="mt-4 w-full bg-[#6366F1] hover:bg-[#5558E6] disabled:opacity-60 text-white px-4 py-2 rounded-lg transition cursor-pointer disabled:cursor-not-allowed"
               >

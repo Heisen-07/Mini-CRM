@@ -241,3 +241,130 @@ Rules:
 
   return parsed;
 }
+
+// ============================================
+// Channel Reasoning
+// Explains why a specific channel was selected
+// ============================================
+
+const CHANNEL_FALLBACKS: Record<string, string> = {
+  email: "Email is ideal for this campaign because it supports rich content, detailed offers, and longer messages. It provides the best open-tracking capabilities and allows customers to engage at their own pace.",
+  sms: "SMS was selected for its immediacy and high open rates. Short, time-sensitive offers perform best on SMS, ensuring the message is seen quickly by the target audience.",
+  whatsapp: "WhatsApp offers high engagement rates and a conversational format. It's excellent for promotional content that benefits from a personal, direct communication style.",
+  rcs: "RCS (Rich Communication Services) combines the reach of SMS with rich media support, enabling interactive and visually engaging campaign messages.",
+};
+
+export async function generateChannelReasoning(
+  channel: string,
+  goal: string,
+  message: string
+): Promise<string> {
+  try {
+    const prompt = `You are a CRM channel strategist.
+
+Explain in 2-3 sentences why "${channel}" is the best channel for this campaign.
+
+Campaign Goal: "${goal}"
+Campaign Message: "${message}"
+
+Rules:
+- Be specific about the channel's strengths
+- Reference the campaign goal and message content
+- Return ONLY plain text, no markdown, no bullets
+- Keep it concise and insightful`;
+
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const text = response.text?.trim();
+    if (!text) throw new Error("Empty response");
+    return text;
+  } catch (error) {
+    console.log("[CHANNEL-REASONING] Gemini unavailable, using fallback");
+    return CHANNEL_FALLBACKS[channel.toLowerCase()] || CHANNEL_FALLBACKS["email"];
+  }
+}
+
+// ============================================
+// Campaign Performance Analysis
+// AI-powered insights from delivery metrics
+// ============================================
+
+export async function generateCampaignAnalysis(data: {
+  name: string;
+  channel: string;
+  message: string | null;
+  audienceSize: number;
+  total: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  failed: number;
+  openRate: number;
+  clickRate: number;
+  failureRate: number;
+}): Promise<string[]> {
+  // Deterministic fallback insights
+  const fallback: string[] = [];
+  fallback.push(`Campaign "${data.name}" reached ${data.total} recipients via ${data.channel}.`);
+  if (data.openRate > 50) {
+    fallback.push(`Strong open rate of ${data.openRate}% indicates good subject line and audience targeting.`);
+  } else if (data.openRate > 0) {
+    fallback.push(`Open rate of ${data.openRate}% suggests room for improvement in messaging or timing.`);
+  }
+  if (data.clickRate > 10) {
+    fallback.push(`Click rate of ${data.clickRate}% shows strong call-to-action engagement.`);
+  } else if (data.total > 0) {
+    fallback.push(`Consider strengthening the call-to-action to improve the ${data.clickRate}% click rate.`);
+  }
+  if (data.failed > 0) {
+    fallback.push(`${data.failed} deliveries failed (${data.failureRate}%). Review audience data quality.`);
+  }
+
+  try {
+    const prompt = `You are a CRM campaign analyst.
+
+Analyze this campaign's performance and provide 3-5 concise insights.
+
+Campaign: "${data.name}"
+Channel: ${data.channel}
+Audience Size: ${data.audienceSize}
+Total Sent: ${data.total}
+Delivered: ${data.delivered}
+Opened: ${data.opened}
+Clicked: ${data.clicked}
+Failed: ${data.failed}
+Open Rate: ${data.openRate}%
+Click Rate: ${data.clickRate}%
+Failure Rate: ${data.failureRate}%
+
+Rules:
+- Return a JSON array of 3-5 strings
+- Each string is one actionable insight
+- Reference specific numbers
+- Include recommendations
+- No markdown, no code fences
+- ONLY return the JSON array`;
+
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    const text = response.text?.trim();
+    if (!text) throw new Error("Empty response");
+
+    const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("Invalid format");
+    return parsed;
+  } catch (error) {
+    console.log("[CAMPAIGN-ANALYSIS] Gemini unavailable, using fallback");
+    return fallback;
+  }
+}

@@ -1,13 +1,15 @@
 // ============================================
 // AI Routes
-// POST /api/ai/message   → generate campaign message
-// POST /api/ai/segment   → AI audience segmentation
-// POST /api/ai/campaign  → AI campaign builder
+// POST /api/ai/message            → generate campaign message
+// POST /api/ai/segment            → AI audience segmentation
+// POST /api/ai/campaign           → AI campaign builder
+// POST /api/ai/channel-reasoning  → explain channel selection
+// POST /api/ai/campaign-analysis  → analyze campaign performance
 // ============================================
 
 import { Router, Request, Response } from "express";
 import { sendSuccess, sendError } from "../utils/response";
-import { generateCampaignMessage, segmentCustomers, generateCampaignPlan } from "../ai/gemini.service";
+import { generateCampaignMessage, segmentCustomers, generateCampaignPlan, generateChannelReasoning, generateCampaignAnalysis } from "../ai/gemini.service";
 import { getCustomersByFilter } from "../services/customer.service";
 import { createCampaign } from "../services/campaign.service";
 
@@ -105,6 +107,44 @@ router.post("/campaign", async (req: Request, res: Response) => {
     }
 
     sendError(res, "AI campaign builder unavailable", 503);
+  }
+});
+
+// AI channel reasoning
+router.post("/channel-reasoning", async (req: Request, res: Response) => {
+  try {
+    const { channel, goal, message } = req.body;
+
+    if (!channel || !goal) {
+      sendError(res, "channel and goal are required", 400);
+      return;
+    }
+
+    const reasoning = await generateChannelReasoning(channel, goal || "", message || "");
+
+    sendSuccess(res, { reasoning });
+  } catch (error: any) {
+    console.error("[CHANNEL-REASONING] Error:", error.message || error);
+    sendError(res, "Channel reasoning unavailable", 503);
+  }
+});
+
+// AI campaign performance analysis
+router.post("/campaign-analysis", async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+
+    if (!data.name || data.total === undefined) {
+      sendError(res, "Campaign name and metrics are required", 400);
+      return;
+    }
+
+    const insights = await generateCampaignAnalysis(data);
+
+    sendSuccess(res, { insights });
+  } catch (error: any) {
+    console.error("[CAMPAIGN-ANALYSIS] Error:", error.message || error);
+    sendError(res, "Campaign analysis unavailable", 503);
   }
 });
 
