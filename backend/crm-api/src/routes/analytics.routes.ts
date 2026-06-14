@@ -8,27 +8,9 @@ import { Router, Request, Response } from "express";
 import { sendSuccess, sendError } from "../utils/response";
 import { getAnalyticsMetrics } from "../services/analytics.service";
 import { generateBusinessInsights } from "../ai/gemini.service";
+import prisma from "../config/database";
 
 const router = Router();
-
-// ============================================
-// In-Memory Insights Cache
-// TTL: 24 hours — avoids Gemini call on every dashboard visit
-// ============================================
-
-interface InsightsCache {
-  aiSummary: string[];
-  generatedAt: string;
-}
-
-let cachedInsights: InsightsCache | null = null;
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-function isCacheValid(): boolean {
-  if (!cachedInsights) return false;
-  const age = Date.now() - new Date(cachedInsights.generatedAt).getTime();
-  return age < CACHE_TTL_MS;
-}
 
 // ============================================
 // Deterministic Fallback Insights
@@ -94,14 +76,18 @@ router.get("/summary", async (req: Request, res: Response) => {
     const metrics = await getAnalyticsMetrics();
     console.log("[ANALYTICS] Metrics aggregated");
 
-    // Step 2: Return cached AI insights if available
-    if (isCacheValid()) {
-      console.log("[ANALYTICS] Returning cached insights");
+    // Step 2: Check persistent cache
+    const cacheEntry = await prisma.aIInsightCache.findFirst({
+      where: { type: "analytics", entityId: null },
+    });
+
+    if (cacheEntry) {
+      console.log("[ANALYTICS] Returning cached insights from DB");
       sendSuccess(res, {
         metrics,
-        aiSummary: cachedInsights!.aiSummary,
+        aiSummary: JSON.parse(cacheEntry.content),
         cached: true,
-        generatedAt: cachedInsights!.generatedAt,
+        generatedAt: cacheEntry.generatedAt,
       });
       return;
     }
@@ -133,21 +119,46 @@ router.post("/refresh", async (req: Request, res: Response) => {
     const metrics = await getAnalyticsMetrics();
     console.log("[ANALYTICS] Metrics aggregated for refresh");
 
-    // Step 2: Call Gemini
+    // Step 2: Check if metrics changed
+    const currentSnapshot = JSON.stringify(metrics);
+    let cacheEntry = await prisma.aIInsightCache.findFirst({
+      where: { type: "analytics", entityId: null },
+    });
+
+    if (cacheEntry && cacheEntry.snapshot === currentSnapshot) {
+      console.log("[ANALYTICS] Refresh blocked (data_unchanged)");
+      sendSuccess(res, {
+        metrics,
+        aiSummary: JSON.parse(cacheEntry.content),
+        cached: true,
+        reason: "data_unchanged",
+        generatedAt: cacheEntry.generatedAt,
+      });
+      return;
+    }
+
+    // Step 3: Call Gemini
     const aiSummary = await generateBusinessInsights(metrics);
     console.log("[ANALYTICS] AI insights generated (refresh)");
 
-    // Step 3: Update cache
-    cachedInsights = {
-      aiSummary,
-      generatedAt: new Date().toISOString(),
-    };
+    // Step 4: Update persistent cache
+    const now = new Date();
+    if (cacheEntry) {
+      await prisma.aIInsightCache.update({
+        where: { id: cacheEntry.id },
+        data: { content: JSON.stringify(aiSummary), snapshot: currentSnapshot, generatedAt: now },
+      });
+    } else {
+      await prisma.aIInsightCache.create({
+        data: { type: "analytics", content: JSON.stringify(aiSummary), snapshot: currentSnapshot, generatedAt: now },
+      });
+    }
 
     sendSuccess(res, {
       metrics,
       aiSummary,
       cached: false,
-      generatedAt: cachedInsights.generatedAt,
+      generatedAt: now.toISOString(),
     });
   } catch (error: any) {
     console.error("[ANALYTICS] Refresh error:", error.message || error);

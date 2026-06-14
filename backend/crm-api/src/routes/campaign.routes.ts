@@ -46,10 +46,12 @@ router.get("/:id", async (req: Request, res: Response) => {
       return;
     }
 
+    const analysis = await getCachedAnalysis(req.params.id as string);
+
     sendSuccess(res, {
       campaign: result.campaign,
       performance: result.performance,
-      analysis: getCachedAnalysis(req.params.id as string),
+      analysis: analysis,
     });
   } catch (error) {
     sendError(res, "Failed to fetch campaign details");
@@ -130,6 +132,20 @@ router.post("/:id/refresh-analysis", async (req: Request, res: Response) => {
       return;
     }
 
+    // Check if performance changed
+    const currentSnapshot = JSON.stringify(result.performance);
+    const existingAnalysis = await getCachedAnalysis(req.params.id as string);
+    if (existingAnalysis && existingAnalysis.snapshot === currentSnapshot) {
+      console.log(`[CAMPAIGN] Refresh blocked (performance_unchanged) for ${req.params.id}`);
+      sendSuccess(res, {
+        insights: existingAnalysis.insights,
+        cached: true,
+        reason: "performance_unchanged",
+        generatedAt: existingAnalysis.generatedAt,
+      });
+      return;
+    }
+
     const insights = await generateCampaignAnalysis({
       name: result.campaign.name,
       channel: result.campaign.channel,
@@ -138,11 +154,12 @@ router.post("/:id/refresh-analysis", async (req: Request, res: Response) => {
       ...result.performance,
     });
 
-    setCachedAnalysis(req.params.id as string, insights);
+    await setCachedAnalysis(req.params.id as string, insights, currentSnapshot);
     console.log(`[CAMPAIGN] AI analysis refreshed for ${req.params.id}`);
 
     sendSuccess(res, {
       insights,
+      cached: false,
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {

@@ -87,3 +87,20 @@ model CommunicationEvent {
 
   communication   Communication @relation(fields: [communicationId], references: [id])
 }
+
+// ============================================
+// AI Insight Cache
+// Persistent storage for Gemini responses
+// ============================================
+model AIInsightCache {
+  id          String   @id @default(cuid())
+  type        String   // "analytics" or "campaign_analysis"
+  entityId    String?  // null for global analytics, campaignId for campaign_analysis
+  content     String   // JSON stringified insights array
+  snapshot    String?  // JSON stringified state of metrics at generation time
+  generatedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([type, entityId]) // Ensure only one cache entry per type/entity combo
+}

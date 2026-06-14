@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -68,6 +69,7 @@ export default function DashboardPage() {
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    setRefreshMessage(null);
     try {
       const res = await fetch(`${API_URL}/api/analytics/refresh`, {
         method: "POST",
@@ -79,9 +81,12 @@ export default function DashboardPage() {
           ...data,
           metrics: json.metrics,
           aiSummary: json.aiSummary,
-          cached: false,
+          cached: json.cached,
           generatedAt: json.generatedAt,
         });
+        if (json.cached && json.reason === "data_unchanged") {
+          setRefreshMessage("Insights are up to date. No new business data.");
+        }
       }
     } catch {
       // Silently fail — existing insights remain visible
@@ -286,12 +291,17 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-6 pt-3 border-t border-[rgba(99,102,241,0.15)] flex justify-between items-center text-xs text-[#94A3B8]/60">
-              <span>
-                {lastUpdated
-                  ? `AI insights from ${lastUpdated}`
-                  : "Rule-based insights — click Refresh for AI analysis"}
-              </span>
+            <div className="mt-6 pt-3 border-t border-[rgba(99,102,241,0.15)] flex justify-between items-start">
+              <div className="flex flex-col text-xs text-[#94A3B8]/60">
+                <span>
+                  {lastUpdated
+                    ? `Last AI Update: ${lastUpdated}`
+                    : "Rule-based insights — click Refresh for AI analysis"}
+                </span>
+                {refreshMessage && (
+                  <span className="text-yellow-500 mt-1">{refreshMessage}</span>
+                )}
+              </div>
               {data.cached && (
                 <span className="bg-[#6366F1]/10 text-[#6366F1] px-2 py-0.5 rounded text-[10px] font-semibold uppercase">
                   Cached

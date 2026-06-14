@@ -52,10 +52,10 @@ export default function CampaignDetailPage() {
   const [reasoning, setReasoning] = useState<string | null>(null);
   const [reasoningLoading, setReasoningLoading] = useState(false);
 
-  // AI performance analysis
   const [insights, setInsights] = useState<string[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [analysisGeneratedAt, setAnalysisGeneratedAt] = useState<string | null>(null);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   // Launching
   const [launching, setLaunching] = useState(false);
@@ -113,6 +113,7 @@ export default function CampaignDetailPage() {
   const handleRefreshAnalysis = async () => {
     if (insightsLoading) return;
     setInsightsLoading(true);
+    setRefreshMessage(null);
     try {
       const res = await fetch(`${API_URL}/api/campaigns/${id}/refresh-analysis`, {
         method: "POST",
@@ -121,6 +122,9 @@ export default function CampaignDetailPage() {
       if (json.success) {
         setInsights(json.insights);
         setAnalysisGeneratedAt(json.generatedAt);
+        if (json.cached && json.reason === "performance_unchanged") {
+          setRefreshMessage("Analysis is up to date. No new performance data.");
+        }
       }
     } catch {
       // Silently fail — existing insights remain visible
@@ -336,8 +340,13 @@ export default function CampaignDetailPage() {
               <p className="text-[#94A3B8]/50 text-sm italic">Click &quot;Refresh Analysis&quot; to generate AI insights for this campaign.</p>
             )}
             {analysisGeneratedAt && (
-              <div className="mt-4 pt-3 border-t border-[rgba(99,102,241,0.15)] text-xs text-[#94A3B8]/60">
-                AI analysis from {new Date(analysisGeneratedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              <div className="mt-4 pt-3 border-t border-[rgba(99,102,241,0.15)] flex flex-col text-xs text-[#94A3B8]/60">
+                <span>
+                  Analysis generated: {new Date(analysisGeneratedAt).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                {refreshMessage && (
+                  <span className="text-yellow-500 mt-1">{refreshMessage}</span>
+                )}
               </div>
             )}
           </div>

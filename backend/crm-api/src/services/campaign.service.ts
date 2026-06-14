@@ -9,25 +9,56 @@ import prisma from "../config/database";
 import { env } from "../config/env";
 
 // ============================================
-// Campaign Analysis Cache (in-memory)
+// Campaign Analysis Cache (Persistent)
 // Avoids calling Gemini on every campaign detail view
 // ============================================
 
 interface CampaignAnalysisCache {
   insights: string[];
+  snapshot: string | null;
   generatedAt: string;
 }
 
-const analysisCache = new Map<string, CampaignAnalysisCache>();
+export async function getCachedAnalysis(campaignId: string): Promise<CampaignAnalysisCache | null> {
+  const cacheEntry = await prisma.aIInsightCache.findUnique({
+    where: {
+      type_entityId: {
+        type: "campaign_analysis",
+        entityId: campaignId,
+      },
+    },
+  });
 
-export function getCachedAnalysis(campaignId: string): CampaignAnalysisCache | null {
-  return analysisCache.get(campaignId) || null;
+  if (!cacheEntry) return null;
+
+  return {
+    insights: JSON.parse(cacheEntry.content),
+    snapshot: cacheEntry.snapshot,
+    generatedAt: cacheEntry.generatedAt.toISOString(),
+  };
 }
 
-export function setCachedAnalysis(campaignId: string, insights: string[]): void {
-  analysisCache.set(campaignId, {
-    insights,
-    generatedAt: new Date().toISOString(),
+export async function setCachedAnalysis(campaignId: string, insights: string[], snapshot: string): Promise<void> {
+  const now = new Date();
+  await prisma.aIInsightCache.upsert({
+    where: {
+      type_entityId: {
+        type: "campaign_analysis",
+        entityId: campaignId,
+      },
+    },
+    update: {
+      content: JSON.stringify(insights),
+      snapshot,
+      generatedAt: now,
+    },
+    create: {
+      type: "campaign_analysis",
+      entityId: campaignId,
+      content: JSON.stringify(insights),
+      snapshot,
+      generatedAt: now,
+    },
   });
 }
 
