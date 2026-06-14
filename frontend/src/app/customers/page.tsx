@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { API_URL } from "@/lib/api";
 
 interface Customer {
   id: string;
@@ -33,7 +34,6 @@ export default function CustomersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
   const fetchCustomers = () => {
     fetch(`${API_URL}/api/customers`)

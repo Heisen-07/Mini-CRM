@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { API_URL } from '@/lib/api';
 
 const EXAMPLE_PROMPTS = [
   'Reactivate inactive customers',
@@ -27,7 +28,6 @@ export default function AICopilotPage() {
     setResult(null);
     setError(null);
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
     try {
       const res = await fetch(`${API_URL}/api/ai/campaign`, {

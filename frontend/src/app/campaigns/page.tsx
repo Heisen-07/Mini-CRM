@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { API_URL } from '@/lib/api';
 
 interface Campaign {
   id: string;
@@ -22,7 +23,6 @@ export default function CampaignsPage() {
   const [launchingIds, setLaunchingIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
   useEffect(() => {
     fetch(`${API_URL}/api/campaigns`)

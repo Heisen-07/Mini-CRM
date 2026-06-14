@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { API_URL } from "@/lib/api";
 
 interface AnalyticsMetrics {
   totalCustomers: number;
@@ -28,7 +29,6 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
   // ── Load metrics + cached/fallback insights (no Gemini call) ──
   const fetchData = () => {
